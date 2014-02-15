@@ -27,6 +27,7 @@ import shlex
 import subprocess
 import sys
 import textwrap
+import pprint 
 
 if sys.version < '3':
     import ConfigParser
@@ -618,6 +619,21 @@ class CannotParseOpenChangesets(ChangeSetException):
     "Cannot parse JSON review information from gerrit"
     EXIT_CODE = 33
 
+def change_details(hostname, username, port, project_name, patchset_opt, review):
+    output = run_command_exc(
+        CannotQueryPatchSet,
+        "ssh", "-x", port, userhost,
+        "gerrit", "query",
+        "--format=JSON %s change:%s" % (patchset_opt, review))
+
+    for line in output.split("\n"):
+        # Warnings from ssh wind up in this output
+        if line[0] != "{":
+            print(line)
+            continue
+        review_info = json.loads(line)
+        if VERBOSE:
+            print(pprint.pformat(review_info))
 
 def list_reviews(remote):
 
@@ -638,21 +654,24 @@ def list_reviews(remote):
         CannotQueryOpenChangesets,
         "ssh", "-x", port, userhost,
         "gerrit", "query",
-        "--format=JSON project:%s status:open" % project_name)
+        "--format=JSON project:%s status:open  --current-patch-set " % project_name)
 
     review_list = []
     review_field_width = {}
-    REVIEW_FIELDS = ('number', 'branch', 'subject')
+    #                  0         1         2          3         4          5
+    REVIEW_FIELDS = ('number', 'branch', 'subject', 'id', 'revision', 'patch_set_number')
     FIELDS = range(0, len(REVIEW_FIELDS))
     if check_color_support():
-        review_field_color = (colors.yellow, colors.green, "")
+        review_field_color = (colors.yellow, colors.green, "", "", "", "")
         color_reset = colors.reset
     else:
-        review_field_color = ("", "", "")
+        review_field_color = ("", "", "", "", "", "")
         color_reset = ""
-    review_field_width = [0, 0, 0]
-    review_field_format = ["%*s", "%*s", "%*s"]
-    review_field_justify = [+1, +1, -1]  # -1 is justify to right
+
+
+    review_field_width = [0, 0, 0, 0, 0, 0]
+    review_field_format = ["%*s", "%*s", "%*s", "%*s", "%*s", "%*s"]
+    review_field_justify = [+1, +1, -1, -1, -1, -1 ]  # -1 is justify to right
 
     for line in output.split("\n"):
         # Warnings from ssh wind up in this output
@@ -661,6 +680,11 @@ def list_reviews(remote):
             continue
         try:
             review_info = json.loads(line)
+
+            if VERBOSE:
+                print(pprint.pformat(review_info))
+            
+
         except Exception:
             if VERBOSE:
                 print(output)
@@ -669,13 +693,18 @@ def list_reviews(remote):
         if 'type' in review_info:
             break
 
+        # create sythetic fields
+        review_info['patch_set_number']=review_info['currentPatchSet']['number']
+        review_info['revision']=review_info['currentPatchSet']['revision']
+
         review_list.append([review_info[f] for f in REVIEW_FIELDS])
+
         for i in FIELDS:
             review_field_width[i] = max(
                 review_field_width[i],
                 len(review_info[REVIEW_FIELDS[i]])
             )
-
+        
     review_field_format = "  ".join([
         review_field_color[i] +
         review_field_format[i] +
@@ -932,6 +961,58 @@ def convert_bool(one_or_zero):
     return one_or_zero in ["1", "true", "True"]
 
 
+        # approve              Verify, approve and/or submit one or more patch sets
+        # ban-commit           Ban a commit from a project's repository
+        # create-account       Create a new batch/role account
+        # create-group         Create a new account group
+        # create-project       Create a new project and associated Git repository
+        # flush-caches         Flush some/all server caches from memory
+        # gc                   Run Git garbage collection
+        # gsql                 Administrative interface to active database
+        # ls-groups            List groups visible to the caller
+        # ls-projects          List projects visible to the caller
+        # ls-user-refs         List refs visible to a specific user
+        # plugin               
+        # query                Query the change database
+        # receive-pack         Standard Git server side command for client side git push
+        # rename-group         Rename an account group
+        # review               Verify, approve and/or submit one or more patch sets
+        
+        # gerrit review {COMMIT | CHANGE,PATCHSET} ... [--] [--abandon] [--delete] [--force-message] [--help (-h)] [--label (-l) LABEL=VALUE] [--message (-m) MESSAGE] [--project (-p) PROJECT] [--publish] [--restore] [--submit (-s)] [--verified N] [--code-review N]
+        #  {COMMIT | CHANGE,PATCHSET} : list of commits or patch sets to review
+        #  --                         : end of options
+        #  --abandon                  : abandon the specified change(s)
+        #  --delete                   : delete the specified draft patch set(s)
+        #  --force-message            : publish the message, even if the label score
+        #                               cannot be applied due to the change being closed
+        #  --help (-h)                : display this help text
+        #  --label (-l) LABEL=VALUE   : custom label(s) to assign
+        #  --message (-m) MESSAGE     : cover message to publish on change(s)
+        #  --project (-p) PROJECT     : project containing the specified patch set(s)
+        #  --publish                  : publish the specified draft patch set(s)
+        #  --restore                  : restore the specified abandoned change(s)
+        #  --submit (-s)              : submit the specified patch set(s)
+        #  --verified N               : score for Verified
+        #                               -1 Fails
+        #                                0 No score
+        #                               +1 Verified
+        #  --code-review N            : score for Code-Review
+        #                               -2 Do not submit
+        #                               -1 I would prefer that you didn't submit this
+        #                                0 No score
+        #                               +1 Looks good to me, but someone else must approve
+        #                               +2 Looks good to me, approved
+        # set-account          Change an account's settings
+        # set-project          Change a project's settings
+        # set-project-parent   Change the project permissions are inherited from
+        # set-reviewers        Add or remove reviewers on a change
+        # show-caches          Display current cache statistics
+        # show-connections     Display active client SSH connections
+        # show-queue           Display the background work queues, including replication
+        # stream-events        Monitor events occurring in real time
+        # test-submit          
+        # version              Display gerrit version
+
 def main():
     usage = "git review [OPTIONS] ... [BRANCH]"
 
@@ -1016,6 +1097,10 @@ def main():
                              "master on successful submission")
     parser.add_argument("-l", "--list", dest="list", action="store_true",
                         help="List available reviews for the current project")
+
+    parser.add_argument("-a", "--abandon", dest="abandon", action="store_true",
+                        help="abandon review")
+
     parser.add_argument("-y", "--yes", dest="yes", action="store_true",
                         help="Indicate that you do, in fact, understand if "
                              "you are submitting more than one patch")
@@ -1089,6 +1174,10 @@ def main():
         return
     elif options.list:
         list_reviews(remote)
+        return
+
+    elif options.abandon:
+        abandon_review(remote)
         return
 
     if options.custom_script:
