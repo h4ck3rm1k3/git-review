@@ -619,21 +619,25 @@ class CannotParseOpenChangesets(ChangeSetException):
     "Cannot parse JSON review information from gerrit"
     EXIT_CODE = 33
 
-def change_details(hostname, username, port, project_name, patchset_opt, review):
-    output = run_command_exc(
-        CannotQueryPatchSet,
-        "ssh", "-x", port, userhost,
-        "gerrit", "query",
-        "--format=JSON %s change:%s" % (patchset_opt, review))
+def abandon_review(remote, abandon):
+    (hostname, username, port, project_name) = \
+        parse_git_show(remote, "Push")
 
-    for line in output.split("\n"):
-        # Warnings from ssh wind up in this output
-        if line[0] != "{":
-            print(line)
-            continue
-        review_info = json.loads(line)
-        if VERBOSE:
-            print(pprint.pformat(review_info))
+    if port is not None:
+        port = "-p %s" % port
+    else:
+        port = ""
+    if username is None:
+        userhost = hostname
+    else:
+        userhost = "%s@%s" % (username, hostname)
+
+    output = run_command_exc(
+         Exception,
+        "ssh", "-x", port, userhost,
+        "gerrit", "review",
+        "--abandon %s" %  abandon)
+    #print (port, userhost, abandon)
 
 def list_reviews(remote):
 
@@ -1098,7 +1102,7 @@ def main():
     parser.add_argument("-l", "--list", dest="list", action="store_true",
                         help="List available reviews for the current project")
 
-    parser.add_argument("-a", "--abandon", dest="abandon", action="store_true",
+    parser.add_argument("-a", "--abandon",
                         help="abandon review")
 
     parser.add_argument("-y", "--yes", dest="yes", action="store_true",
@@ -1177,7 +1181,7 @@ def main():
         return
 
     elif options.abandon:
-        abandon_review(remote)
+        abandon_review(remote, options.abandon)
         return
 
     if options.custom_script:
