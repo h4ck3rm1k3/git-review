@@ -619,6 +619,30 @@ class CannotParseOpenChangesets(ChangeSetException):
     "Cannot parse JSON review information from gerrit"
     EXIT_CODE = 33
 
+def set_reviewers(remote, reviewers, change ):
+
+    (hostname, username, port, project_name) = \
+        parse_git_show(remote, "Push")
+
+    if port is not None:
+        port = "-p %s" % port
+    else:
+        port = ""
+    if username is None:
+        userhost = hostname
+    else:
+        userhost = "%s@%s" % (username, hostname)
+
+    output = run_command_exc(
+         Exception,
+        "ssh", "-x", port, userhost,
+        "gerrit", "set-reviewers",
+        "--add %s" %  reviewers,
+        "%s" %  change
+    )
+
+
+
 def abandon_review(remote, abandon):
     (hostname, username, port, project_name) = \
         parse_git_show(remote, "Push")
@@ -1106,6 +1130,12 @@ def main():
     parser.add_argument("-a", "--abandon",
                         help="abandon review")
 
+    parser.add_argument("--set-reviewers", dest="set_reviewers",
+                        help="set reviewer")
+
+    parser.add_argument("--change", dest="for_change",
+                        help="set reviewer for change")
+
     parser.add_argument("-y", "--yes", dest="yes", action="store_true",
                         help="Indicate that you do, in fact, understand if "
                              "you are submitting more than one patch")
@@ -1184,6 +1214,11 @@ def main():
     elif options.abandon:
         abandon_review(remote, options.abandon)
         return
+
+    elif options.set_reviewers:
+        set_reviewers(remote, options.set_reviewers, options.for_change)
+        return
+
 
     if options.custom_script:
         run_custom_script("pre")
