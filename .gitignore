@@ -1,3 +1,7 @@
-build
+*.pyc
+*.pyo
+
+# The /build directory is created by setup.py
+/build
 dist
 git_review.egg-info
