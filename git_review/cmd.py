@@ -663,19 +663,19 @@ def list_reviews(remote):
     review_list = []
     review_field_width = {}
     #                  0         1         2          3         4          5
-    REVIEW_FIELDS = ('number', 'branch', 'subject', 'id', 'revision', 'patch_set_number')
+    REVIEW_FIELDS = ('number', 'branch', 'subject', 'id', 'revision', 'patch_set_number', 'owner_name')
     FIELDS = range(0, len(REVIEW_FIELDS))
     if check_color_support():
-        review_field_color = (colors.yellow, colors.green, "", "", "", "")
+        review_field_color = (colors.yellow, colors.green, "", "", "", "", "")
         color_reset = colors.reset
     else:
-        review_field_color = ("", "", "", "", "", "")
+        review_field_color = ("", "", "", "", "", "", "")
         color_reset = ""
 
 
-    review_field_width = [0, 0, 0, 0, 0, 0]
-    review_field_format = ["%*s", "%*s", "%*s", "%*s", "%*s", "%*s"]
-    review_field_justify = [+1, +1, -1, -1, -1, -1 ]  # -1 is justify to right
+    review_field_width = [0, 0, 0, 0, 0, 0, 0]
+    review_field_format = ["%*s", "%*s", "%*s", "%*s", "%*s", "%*s" , "%*s"]
+    review_field_justify = [+1, +1, -1, -1, -1, -1 , -1 ]  # -1 is justify to right
 
     for line in output.split("\n"):
         # Warnings from ssh wind up in this output
@@ -700,6 +700,7 @@ def list_reviews(remote):
         # create sythetic fields
         review_info['patch_set_number']=review_info['currentPatchSet']['number']
         review_info['revision']=review_info['currentPatchSet']['revision']
+        review_info['owner_name']=review_info['owner']['name']
 
         review_list.append([review_info[f] for f in REVIEW_FIELDS])
 
