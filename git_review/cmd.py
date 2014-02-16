@@ -759,6 +759,76 @@ def list_reviews(remote):
     return 0
 
 
+def list_feedback(remote, change_no):
+
+    (hostname, username, port, project_name) = \
+        parse_git_show(remote, "Push")
+
+    if port is not None:
+        port = "-p %s" % port
+    else:
+        port = ""
+    if username is None:
+        userhost = hostname
+    else:
+        userhost = "%s@%s" % (username, hostname)
+
+    review_info = None
+    output = run_command_exc(
+        CannotQueryOpenChangesets,
+        "ssh", "-x", port, userhost,
+        "gerrit", "query",
+        "--format=JSON project:%s status:open  --current-patch-set  --files --comments  change:%s " % (project_name, change_no))
+
+    for line in output.split("\n"):
+        # Warnings from ssh wind up in this output
+        if line[0] != "{":
+            print(line)
+            continue
+        try:
+            review_info = json.loads(line)
+            if VERBOSE:
+                print(pprint.pformat(review_info))
+          
+        except Exception:
+            if VERBOSE:
+                print(output)
+            raise(CannotParseOpenChangesets, sys.exc_info()[1])
+
+        if 'type' in review_info:
+            break
+
+        # create sythetic fields
+        review_info['patch_set_number']=review_info['currentPatchSet']['number']
+        review_info['revision']=review_info['currentPatchSet']['revision']
+        review_info['owner_name']=review_info['owner']['name']
+
+        print("\t".join([review_info[f] for f in 
+                         (
+                             'number', 
+                             'branch', 
+                             'subject', 
+                             'id', 
+                             'revision', 
+                             'patch_set_number', 
+                             'owner_name'
+                         )
+                     ]))
+
+        for comment in review_info['comments']:
+            comment['reviewer_name'] = comment['reviewer']['name']
+            print("\t".join([comment[f] for f in 
+                             (
+                                 'message', 
+                                 'reviewer_name', 
+                             )
+                         ]
+                        )
+            )
+
+    return 0
+
+
 class CannotQueryPatchSet(CommandFailed):
     "Cannot query patchset information"
     EXIT_CODE = 34
@@ -1136,6 +1206,9 @@ def main():
     parser.add_argument("--change", dest="for_change",
                         help="set reviewer for change")
 
+    parser.add_argument("--feedback", dest="feedback",
+                        help="get feedback for change")
+
     parser.add_argument("-y", "--yes", dest="yes", action="store_true",
                         help="Indicate that you do, in fact, understand if "
                              "you are submitting more than one patch")
@@ -1209,6 +1282,10 @@ def main():
         return
     elif options.list:
         list_reviews(remote)
+        return
+
+    elif options.feedback:
+        list_feedback(remote, options.feedback)
         return
 
     elif options.abandon:
