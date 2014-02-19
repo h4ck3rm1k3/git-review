@@ -723,7 +723,8 @@ def list_reviews(remote):
 
         # create sythetic fields
         review_info['patch_set_number']=review_info['currentPatchSet']['number']
-        review_info['revision']=review_info['currentPatchSet']['revision']
+        review_info['revision']=review_info['currentPatchSet']['revision'][0:8]
+        review_info['id']=review_info['id'][0:8]
         review_info['owner_name']=review_info['owner']['name']
 
         review_list.append([review_info[f] for f in REVIEW_FIELDS])
